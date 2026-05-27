@@ -3,6 +3,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import List
 import uvicorn
+import random
 
 app = FastAPI(
     title="API Text Adventure",
@@ -13,8 +14,15 @@ app = FastAPI(
 class Player:
     def __init__(self):
         self.health = 100
-        self.inventory: List[str] = []
-        self.location = "lobby"
+        self.inventory= {
+            "green_herbs":0,
+            "blue_herbs":0,
+            "health_potion":0,
+            "mining_potion":0,
+        }
+        self.location = "brewery"
+        self.state=None
+        self.brew=None
 
 player = Player()
 
@@ -36,7 +44,7 @@ ROOMS = {
         "choices": ["meditate"]
     },
     "cave":{
-        "description":"You entered a cold dark cave .Water drips from the ceiling and stranger noises  echo the tunnels.You can mine here and use them for upgrading tools",
+        "description":"You entered a cold dark cave ,Water drips from the ceiling .You can mine here and use them for upgrading tools-make sure to have enough health or use potions for stamina",
         "choices":["mine"]
     },
     "quests":{
@@ -78,7 +86,7 @@ def map():
         "|                   |                   |                   |\n"
         "+--------[ ]--------+--------[ ]--------+--------[ ]--------+\n"
         "|                   |                   |                   |\n"
-        "|    Deep Forest    |      LOBBY        |      Merchant     |\n"
+        "|    Deep Forest    |       LOBBY       |      Merchant     |\n"
         "|                   |                   |                   |\n"
         "+--------[ ]--------+--------[ ]--------+--------[ ]--------+\n"
         "|                   |                   |                   |\n"
@@ -116,11 +124,70 @@ def choice(action:Action):
     if not action.choice:
         options=ROOMS.get(player.location, {}).get("choices", [])
         return PlainTextResponse(f"Please select a choice.Available choices:{options}")
-    if action.choice not in ROOMS.get(player.location, {}).get("choices", []):
-        options=ROOMS.get(player.location,{}).get("choices",[])
-        return PlainTextResponse(f"Please select a choice.Available choices:{options}")
-    #if(player.location=="brewery"):
-    #     if(action.choice=="")
+    # if action.choice not in ROOMS.get(player.location, {}).get("choices", []):
+    #     options=ROOMS.get(player.location,{}).get("choices",[])
+    #     return PlainTextResponse(f"Please select a choice.Available choices:{options}")
+    if(player.location=="brewery"):
+        if(action.choice=="harvest"):
+            g = random.randint(1,3)
+            b = random.randint(1,2)
+            player.inventory["green_herbs"] += g-1
+            player.inventory["blue_herbs"] += b-1
+            content = (
+                f"You have harvested:\n"
+                f"Green herbs: {g-1}\n"
+                f"Blue herbs: {b-1}\n"
+            )
+            return PlainTextResponse(content)
+        if player.state==None:
+            if action.choice=="brew":
+                player.state=action.choice
+                return PlainTextResponse(
+                    "Which potion you want to brew?\n"
+                    "health_potion\n"
+                    "The potion increases the health to 50hp\n"
+                    "mining_potion\n"
+                    "The potion when taken and mined you may get more resources\n"
+                    "Enter your choice with the exact name mentioned above"
+                )
+        else:
+            if player.state=="brew" :
+                if action.choice=="health_potion" :
+                    if player.inventory["green_herbs"]>=2:
+                       player.inventory["health_potion"]+=1
+                       player.inventory["green_herbs"]-=2
+                       player.state=None
+                       return PlainTextResponse(
+                           "Succesfully crafted a health_potion\n"
+                        )
+                    else:
+                        player.state=None
+                        return PlainTextResponse(
+                           "You don't have enough green herbs ,harvest them in brewery\n"
+                        )
+                elif action.choice=="mining_potion" :
+                    if player.inventory["blue_herbs"]>=2:
+                       player.inventory["mining_potion"]+=1
+                       player.inventory["blue_herbs"]-=2
+                       player.state=None
+                       return PlainTextResponse(
+                           "Succesfully crafted a mining_potion\n"
+                        )
+                    else:
+                        player.state=None
+                        return PlainTextResponse(
+                           "You don't have enough green herbs ,harvest them in brewery\n"
+                        )
+                else:
+                    return PlainTextResponse(
+                    "Which potion you want to brew?\n"
+                    "health_potion\n"
+                    "mining_potion\n"
+                    "Enter your choice with the exact name mentioned above"
+                )
+
+                   
+
 @app.get("/playerinfo")
 def info():
     return{
