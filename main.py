@@ -24,11 +24,12 @@ class Player:
             "iron":0,
             "diamond":0
         }
-        self.armor={
+        self.armor=[
             "wooden_pickaxe",
             "wooden_sword",
-        }
+        ]
         self.location = "cave"
+        self.coins=0
         self.state=None
         self.brew=None
         self.meditate_timer=time.time()
@@ -60,10 +61,6 @@ ROOMS = {
         "description":"You entered a cold dark cave ,Water drips from the ceiling .You can mine here and use them for upgrading tools-make sure to have enough health or use potions for stamina",
         "choices":["mine"]
     },
-    "quests":{
-        "description":"",
-        "choices":["Craft a gold pickaxe"]
-    },
     "library":{
         "description":"Dusty books fill the ancient shelves.Candelight flickers and strange symbols.You can read ,solve riddle",
         "choices":["read","riddle"]
@@ -78,7 +75,7 @@ ROOMS = {
     },
     "blacksmith":{
         "description":"You can forge your tools like sword and pickaxe and also repair them if their health is less",
-        "choices":["upgrade","repair"]
+        "choices":["upgrade"]
     },
     "boss_fight":{
         "description":"You step into a massive area.The ground shakes as a powerful enemy is hiding in the dark",
@@ -189,7 +186,7 @@ def choice(action:Action):
                     else:
                         player.state=None
                         return PlainTextResponse(
-                           "You don't have enough green herbs ,harvest them in brewery\n"
+                           "You don't have enough blue herbs ,harvest them in brewery\n"
                         )
                 else:
                     return PlainTextResponse(
@@ -203,7 +200,7 @@ def choice(action:Action):
             "harvest\n"
             "brew"
         )
-    if(player.location=="deep_forest"):
+    elif(player.location=="deep_forest"):
         if(action.choice=="meditate"):
             if(time.time() - player.meditate_timer) >= 20:
                 player.health+=10
@@ -220,11 +217,12 @@ def choice(action:Action):
                 "Return a valid choice\n"
                 "meditate"
             )
-    if(player.location=="cave"):
+    elif(player.location=="cave"):
         if(action.choice=="mine"):
-            if (time.time() - player.mine_time) >= 120:
-                player.mine_potion = 0
-                player.health -= 3
+            if player.mine_potion == 1:
+                if (time.time() - player.mine_time) >= 120:
+                    player.mine_potion = 0
+                    player.health -= 3
             else:
                 player.health -= 3
             s=0
@@ -249,7 +247,167 @@ def choice(action:Action):
                 f"Stone: {s}\n"
                 f"Iron: {i}\n"
                 f"Diamond: {d}\n"
+                f"Your health is decreased by -3Hp.Watch out( ■_■)"
             )
+    elif(player.location=="blacksmith"):
+        if player.state==None:
+            if(action.choice=="upgrade"):
+                player.state=action.choice
+                items=list(player.armor)
+                return PlainTextResponse(
+                    "Which item you wan to upgrade:\n"
+                    f"{items[0]}\n"
+                    f"{items[1]}\n"
+                )
+            else:
+                return PlainTextResponse(
+                    "Choose a valid choice:\n"
+                    "upgrade"
+                )
+        else:
+            player.state=None
+            if(action.choice=="wooden_pickaxe"):
+                if(player.inventory["iron"]>=3):
+                    player.inventory["iron"]-=3
+                    player.armor[0]="iron_pickaxe"
+                    return(
+                        f"You succesfully upgraded your pickaxe to {player.armor[0]}."
+                    )
+                else:
+                    return PlainTextResponse(
+                        "To upgrade your pickaxe you need more iron required\n"
+                        "Go to the cave and mine some iron"
+                    )
+            elif(action.choice=="iron_pickaxe"):
+                if(player.inventory["diamond"]>=3):
+                    player.inventory["diamond"]-=3
+                    player.armor[0]="diamond_pickaxe"
+                    return(
+                        f"You succesfully upgraded your pickaxe to {player.armor[0]}."
+                    )
+                else:
+                    return PlainTextResponse(
+                        "To upgrade your pickaxe you need more diamond required\n"
+                        "Go to the cave and mine some diamonds\n"
+                    )
+            elif(action.choice=="wooden_sword"):
+                if(player.inventory["iron"]>=3):
+                    player.inventory["iron"]-=3
+                    player.armor[1]="iron_sword"
+                    return(
+                        f"You succesfully upgraded your sword to {player.armor[1]}"
+                    )
+                else:
+                    return PlainTextResponse(
+                        "To upgrade your sword you need more iron required\n"
+                        "Go to the cave and mine some iron"
+                    )
+            elif(action.choice=="iron_sword"):
+                if(player.inventory["diamond"]>=3):
+                    player.inventory["diamond"]-=3
+                    player.armor[1]="diamond_sword"
+                    return(
+                        f"You succesfully upgraded your sword to {player.armor[1]}"
+                    )
+                else:
+                    return PlainTextResponse(
+                        "To upgrade your sword you need more diamond required\n"
+                        "Go to the cave and mine some diamonds\n"
+                    )
+            else:
+                return PlainTextResponse(
+                    "Enter a valid choice:\n"
+                    f"{items[0]}\n"
+                    f"{items[1]}\n"
+                )
+    elif(player.location=="merchant"):
+        if(player.state==None):
+            if(action.choice=="buy" or action.choice=="sell"):
+                player.state=action.choice
+                if(action.choice=="buy"):
+                    return PlainTextResponse(
+                        "emerald_helmet=15coins\n"
+                        "emerald_vest=18coins\n"
+                        "emerald_pant=20coins\n"
+                        "emerald_boots=22coins\n"
+                    )
+                else:
+                    return PlainTextResponse(
+                        "stone=1coin\n"
+                        "iron=2coin\n"
+                        "diamond=4coin\n"
+                        "health_potion=5coins\n"
+                        "mining_potion=5coins\n"
+                    )
+            else:
+                return PlainTextResponse(
+                    "Enter a valid choice:\n"
+                    "buy\n"
+                    "sell\n"
+                )
+        else:
+            if(player.state=="buy"):
+                buy_items={
+                    "emerald_helmet":15,
+                    "emerald_vest":18,
+                    "emerald_pant":20,
+                    "emerald_boots":22
+                }
+                if action.choice in buy_items:
+                    if(buy_items[action.choice]<=player.coins):
+                        player.state=None
+                        player.coins-=buy_items[action.choice]
+                        player.armor.append(action.choice)
+                        return(
+                            f"You have purchased {action.choice}!!!"
+                        )
+                    else:
+                        player.state=None
+                        return PlainTextResponse(
+                            f"You don't have to coins to buy {action.choice},Go earn them."
+                        )
+                else:
+                    player.state=None
+                    return PlainTextResponse(
+                        "Enter a valid choice:\n"
+                        "emerald_helmet\n"
+                        "emerald_vest\n"
+                        "emerald_pant\n"
+                        "emerald_boots\n"
+                    )
+            elif (player.state=="sell"):
+                sell_items={
+                    "stone":1,
+                    "iron":2,
+                    "diamond":4,
+                    "health_potion":5,
+                    "mining_potion":5
+                }
+                if(action.choice in sell_items):
+                    player.state=None
+                    if(player.inventory[action.choice]>=1):
+                        player.inventory[action.choice]-=1
+                        player.coins+=sell_items[action.choice]
+                        return PlainTextResponse(
+                            f"Succesfully sold the {action.choice} for {sell_items[action.choice]}"
+                        )
+                    else:
+                        return PlainTextResponse(
+                            "You don't have enough resources to sell go make them"
+                        )
+                else:
+                    player.state=None
+                    return PlainTextResponse(
+                        "Enter a valid choice:\n"
+                        "stone\n"
+                        "iron\n"
+                        "diamond\n"
+                        "health_potion\n"
+                        "mining_potion\n"
+                    )
+                
+                
+
             
                        
 @app.post("/usepotion")
@@ -292,6 +450,7 @@ def info():
     return{
         "player_health":player.health,
         "player_location":player.location,
+        "player_coins":player.coins,
         "player_inventory":player.inventory,
         "player_armor":player.armor
     }    
