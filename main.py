@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List
 import uvicorn
 import random
+import time
 
 app = FastAPI(
     title="API Text Adventure",
@@ -19,17 +20,29 @@ class Player:
             "blue_herbs":0,
             "health_potion":0,
             "mining_potion":0,
+            "stone":0,
+            "iron":0,
+            "diamond":0
         }
-        self.location = "brewery"
+        self.armor={
+            "wooden_pickaxe",
+            "wooden_sword",
+        }
+        self.location = "cave"
         self.state=None
         self.brew=None
-
+        self.meditate_timer=time.time()
+        self.mine_potion=0
+        self.mine_time=time.time()
 player = Player()
 
 class ActionRequest(BaseModel):
     teleport: str
 class Action(BaseModel):
     choice:str
+class a(BaseModel):
+    potion:str
+
 ROOMS = {
     "lobby": {
         "description": "The central area conecting every room together.Players can rest here and choose where they can explore next.",
@@ -96,7 +109,7 @@ def map():
         "                          |       |\n"
         "                          |       |\n"
         "                          |       |\n"
-        "                          [  EXIT ] \n"
+        "                          [  EXIT ]\n"
     )
 @app.get("/explore_room")
 def status():
@@ -185,15 +198,102 @@ def choice(action:Action):
                     "mining_potion\n"
                     "Enter your choice with the exact name mentioned above"
                 )
+        return PlainTextResponse(
+            "Enter valid choices\n"
+            "harvest\n"
+            "brew"
+        )
+    if(player.location=="deep_forest"):
+        if(action.choice=="meditate"):
+            if(time.time() - player.meditate_timer) >= 20:
+                player.health+=10
+                player.meditate_timer=time.time()
+                return PlainTextResponse(
+                    "Your health has been increased by 10HP\n"
+                )
+            else:
+                return PlainTextResponse(
+                    f"Your on a cooldown come after {20-abs(int(time.time() - player.meditate_timer))}sec\n"
+                )
+        else:
+            return PlainTextResponse(
+                "Return a valid choice\n"
+                "meditate"
+            )
+    if(player.location=="cave"):
+        if(action.choice=="mine"):
+            if (time.time() - player.mine_time) >= 120:
+                player.mine_potion = 0
+                player.health -= 3
+            else:
+                player.health -= 3
+            s=0
+            i=0
+            d=0
+            if "wooden_pickaxe" in player.armor:
+               s=random.randint(0,2)
+               i=random.randint(0,1)
+            elif "iron_pickaxe" in player.armor:
+                s=random.randint(0,2)
+                i=random.randint(0,2)
+                d=random.randint(0,1)
+            elif "diamond_pickaxe" in player.armor:
+                s=random.randint(0,2)
+                i=random.randint(0,2)
+                d=random.randint(0,2)
+            player.inventory["stone"]+=s
+            player.inventory["iron"]+=i
+            player.inventory["diamond"]+=d
+            return PlainTextResponse(
+                f"You have mined:\n"
+                f"Stone: {s}\n"
+                f"Iron: {i}\n"
+                f"Diamond: {d}\n"
+            )
+            
+                       
+@app.post("/usepotion")
+def potion(action:a):
+    if(action.potion=="health_potion"):
+        if player.inventory["health_potion"] <= 0:
+            return PlainTextResponse(
+                "You do not have a health potion."
+            )
+        player.health+=30
+        player.inventory["health_potion"] -=1
+        if player.health > 200:
+            player.health = 200
+        return PlainTextResponse(
+            "Health potion activated!! 30HP increased"
+        )
+    elif(action.potion=="mining_potion"):
+        if player.inventory["mining_potion"] <= 0:
+            return PlainTextResponse(
+                "You do not have a mining potion."
+            )
+        player.mine_potion=1
+        player.mine_time=time.time()
+        player.inventory["mining_potion"] -= 1
+        return PlainTextResponse(
+            "Mining potion activated!! You can mine for 2 minutes with no loss of health"
+        )
+    else:
+        return PlainTextResponse(
+            "Enter a valid choice:\n"
+            "health_potion\n"
+            "mining_potion"
+        )
 
-                   
+
+
 
 @app.get("/playerinfo")
 def info():
     return{
         "player_health":player.health,
+        "player_location":player.location,
         "player_inventory":player.inventory,
-        "player_location":player.location
+        "player_armor":player.armor
     }    
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
