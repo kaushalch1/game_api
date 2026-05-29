@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: game-api
+    env: docker
+    plan: free
+    autoDeploy: true
