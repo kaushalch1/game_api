@@ -516,11 +516,147 @@ def choice(action:Action):
                 "Enter a valid choice:\n"
                 "riddle"
             )
+    elif(player.location=="boss_fight"):
+        if len(quest)!=0:
+            return PlainTextResponse(
+                "You must complete all quests to fight with boss"
+            )
+        
+        boss_health = getattr(player, "boss_health", 150)
+        if player.state is None:
+            if action.choice=="enter":
+                player.state="boss"
+                player.boss_health=150
+                return PlainTextResponse(
+                    "A massive Shadow Dragon appears!\n"
+                    "Boss Health: 150HP\n\n"
+                    "Choose your action:\n"
+                    "attack\n"
+                    "heavy_attack\n"
+                    "heal\n"
+                )
+            return PlainTextResponse(
+                "Enter a valid choice:\n"
+                "enter"
+            )
+        elif player.state=="boss":
+            if (action.choice=="attack"):
+                damage=random.randint(10,20)
+                if "diamond_sword" in player.armor:
+                    damage+=15
+                elif "iron_sword" in player.armor:
+                    damage+=8
+                player.boss_health-=damage
+                if player.boss_health <= 0:
+                    player.state = None
+                    return PlainTextResponse(
+                        f"You dealt {damage} damage!\n"
+                        "The Shadow Dragon has been defeated!\n"
+                        "YOU WIN THE GAME!"
+                    )
+                boss_damage=random.randint(8,18)
+                player.health-=boss_damage
+                if player.health<=0:
+                    player.state=None
+                    player.location="game_over"
+                return PlainTextResponse(
+                    f"You dealt {damage} damage.\n"
+                    f"The boss dealt {boss_damage} damage.\n"
+                    "You were defeated...\n"
+                    "GAME OVER"
+                )
+            return PlainTextResponse(
+                f"You dealt {damage} damage!\n"
+                f"Boss HP: {player.boss_health}\n\n"
+                f"The boss attacked back for {boss_damage} damage!\n"
+                f"Your HP: {player.health}\n\n"
+                "Choose:\n"
+                "attack\n"
+                "heavy_attack\n"
+                "heal"
+            )
+        elif action.choice=="heavy_attack":
+
+            hit=random.randint(0,1)
+            if hit==1:
+                damage=random.randint(25,40)
+                if "diamod_sword" in player.armor:
+                    damage+=20
+                elif "iron_sword" in player.armor:
+                    damage+=10
+                player.boss_health-=damage
+                if boss_health<=0:
+                    player.state=None
+                    return PlainTextResponse(
+                        f"CRITICAL HIT! You dealt {damage} damage!\n"
+                        "The Shadow Dragon has been defeated!\n"
+                        "YOU WIN THE GAME!"
+                    )
+                boss_damage=random.randint(10,20)
+                player.health-=boss_damage
+                if player.health<=0:
+                    player.state=None
+                    player.location="game_over"
+                    return PlainTextResponse(
+                            "You were defeated...\n"
+                            "GAME OVER"
+                    )
+                return PlainTextResponse(
+                        f"Critical hit! You dealt {damage} damage!\n"
+                        f"Boss HP: {player.boss_health}\n\n"
+                        f"The boss attacked back for {boss_damage} damage!\n"
+                        f"Your HP: {player.health}"
+                )
+            else:
+                boss_damage=random.randint(15,25)
+                player.health-=boss_damage
+                if (player.health<=0):
+                    player.state=None
+                    player.location="game_over"
+                    return PlainTextResponse(
+                        "Your heavy attack missed!\n"
+                        "The boss defeated you...\n"
+                        "GAME OVER"
+                    )
+                return PlainTextResponse(
+                    f"Your heavy attack missed!\n"
+                    f"The boss attacked for {boss_damage} damage!\n"
+                    f"Your HP: {player.health}"
+                )
+        elif action.choice=="heal":
+            if player.inventory["health_potion"]<=0:
+                return PlainTextResponse(
+                    "You do not have any health potions!"
+                )
+            player.inventory["health_potion"] -= 1
+            player.health += 30
+            if player.health>=200:
+                player.health=200
+            boss_damage = random.randint(5, 15)
+            player.health -= boss_damage
+
+            if player.health <= 0:
+                player.state = None
+                player.location = "game_over"
+                return PlainTextResponse(
+                    "You healed, but the boss defeated you...\n"
+                    "GAME OVER"
+                )
+            return PlainTextResponse(
+                f"You healed 35 HP!\n"
+                f"The boss attacked for {boss_damage} damage!\n"
+                f"Your HP: {player.health}\n"
+                f"Boss HP: {player.boss_health}"
+            )
+        else:
+            return PlainTextResponse(
+                "Choose a valid move:\n"
+                "attack\n"
+                "heavy_attack\n"
+                "heal"
+            )
 
                 
-
-            
-                       
 @app.post("/usepotion")
 def potion(action:a):
     if(action.potion=="health_potion"):
