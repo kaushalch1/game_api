@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from typing import List
+import requests
 import uvicorn
 import random
 import time
@@ -11,7 +11,26 @@ app = FastAPI(
     description="A text-based RPG engine played entirely through API requests!",
     version="1.0.0"
 )
-
+riddles=[{"riddle": "What has hands but cannot clap?", "answer": "Clock"},
+            {"riddle": "What has a head and a tail but no body?", "answer": "Coin"},
+            {"riddle": "What has one eye but cannot see?", "answer": "Needle"},
+            {"riddle": "What gets wetter the more it dries?", "answer": "Towel"},
+            {"riddle": "What is full of holes but still holds water?", "answer": "Sponge"},
+            {"riddle": "What has legs but does not walk?", "answer": "Table"},
+            {"riddle": "What goes up but never comes down?", "answer": "Age"},
+            {"riddle": "What has words but never speaks?", "answer": "Book"},
+            {"riddle": "What belongs to you but is used more by others?", "answer": "Name"},
+            {"riddle": "What can you catch but not throw?", "answer": "Cold"},
+            {"riddle": "What has a neck but no head?", "answer": "Bottle"},
+            {"riddle": "What goes through cities but never moves?", "answer": "Road"},
+            {"riddle": "What has teeth but cannot bite?", "answer": "Comb"},
+            {"riddle": "The more you take, the more you leave behind. What are they?", "answer": "Footsteps"},
+            {"riddle": "What can honk without a horn?", "answer": "Goose"},
+            {"riddle": "What has a thumb and four fingers but isn't alive?", "answer": "Glove"},
+            {"riddle": "What is easy to get into but hard to get out of?", "answer": "Trouble"},
+            {"riddle": "What loses its head in the morning and gets it back at night?", "answer": "Pillow"},
+            {"riddle": "What is orange and sounds like a parrot?", "answer": "Carrot"},
+            {"riddle": "What building has the most stories?", "answer": "Library"}]
 class Player:
     def __init__(self):
         self.health = 100
@@ -28,22 +47,26 @@ class Player:
             "wooden_pickaxe",
             "wooden_sword",
         ]
-        self.location = "cave"
+        self.location = "library"
         self.coins=0
         self.state=None
         self.brew=None
         self.meditate_timer=time.time()
         self.mine_potion=0
         self.mine_time=time.time()
+        self.quests=None
+        self.tasks=[]
 player = Player()
-
+player.tasks.append(riddles[random.randint(0,5)])
+player.tasks.append(riddles[random.randint(6,10)])
+player.tasks.append(riddles[random.randint(11,14)])
+player.tasks.append(riddles[random.randint(15,19)])
 class ActionRequest(BaseModel):
     teleport: str
 class Action(BaseModel):
-    choice:str
+    choice: str
 class a(BaseModel):
-    potion:str
-
+    potion: str
 ROOMS = {
     "lobby": {
         "description": "The central area conecting every room together.Players can rest here and choose where they can explore next.",
@@ -62,16 +85,16 @@ ROOMS = {
         "choices":["mine"]
     },
     "library":{
-        "description":"Dusty books fill the ancient shelves.Candelight flickers and strange symbols.You can read ,solve riddle",
-        "choices":["read","riddle"]
+        "description":"Dusty books fill the ancient shelves.Candelight flickers and strange symbols.You can solve riddle",
+        "choices":["riddle"]
     },
     "merchant":{
         "description":"A merchant stands with a wagon of supplies and rare items.You can buy and sell items here",
         "choices": ["buy","sell"]
     },
     "quests":{
-        "description":"A large wodden board is ccovered with quests and bounties.You can accept them",
-        "choices":["accept"]
+        "description":"A large wodden board is ccovered with quests and bounties.You can accept them and complete all  to unlock and fight with boss",
+        "choices":["quest1","quest2","quest3"]
     },
     "blacksmith":{
         "description":"You can forge your tools like sword and pickaxe and also repair them if their health is less",
@@ -86,7 +109,11 @@ ROOMS = {
         "choices": []
     }
 }
-
+quest={
+            "quest1":"Craft a health_potion and a mining_potion from the brewery",
+            "quest2":"Solve 2 riddles from the librarian",
+            "quest3":"Buy a full emerald armor from the merchant includes the helmet,vest,pant,boots",
+        }
 @app.get("/map", response_class=PlainTextResponse)
 def map():
     return (
@@ -126,8 +153,10 @@ def teleport(action: ActionRequest):
     if location not in LOCATIONS:
         raise HTTPException(status_code=400, detail=f"Invalid location. Choose from: {', '.join(LOCATIONS)}")
     x = player.location
+    player.state=None
     player.location = location
     return PlainTextResponse(f"Player has teleported from {x} to {player.location}")
+
 @app.post("/choice")
 def choice(action:Action):
     action.choice=action.choice.lower()
@@ -253,7 +282,7 @@ def choice(action:Action):
         if player.state==None:
             if(action.choice=="upgrade"):
                 player.state=action.choice
-                items=list(player.armor)
+                items=player.armor
                 return PlainTextResponse(
                     "Which item you wan to upgrade:\n"
                     f"{items[0]}\n"
@@ -317,8 +346,8 @@ def choice(action:Action):
             else:
                 return PlainTextResponse(
                     "Enter a valid choice:\n"
-                    f"{items[0]}\n"
-                    f"{items[1]}\n"
+                    f"{player.armor[0]}\n"
+                    f"{player.armor[1]}\n"
                 )
     elif(player.location=="merchant"):
         if(player.state==None):
@@ -405,7 +434,89 @@ def choice(action:Action):
                         "health_potion\n"
                         "mining_potion\n"
                     )
-                
+    elif(player.location=="quests"):
+        if(player.quests==None):
+            if(action.choice not in ROOMS["quests"]["choices"]):
+                return PlainTextResponse(
+                    "Complete all the quests to be able to fight with the boss.\n"
+                    f"Remaining quests:\n{quest}\n"
+                    "If completed the quest enter the name of the quest"
+                )
+            else:
+                player.quests=action.choice
+                if(action.choice=="quest1"):
+                    player.quests=None
+                    if(player.inventory["health_potion"] and player.inventory["mining_potion"]):
+                        quest.pop("quest1",None)
+                        return PlainTextResponse(
+                            "Succesfully completed the quest1 complete remaining quests"
+                            f"Remaining quests:\n{quest}"
+                        )
+                    else:
+                        return PlainTextResponse(
+                            "You don't have the required potions go and craft them:\n"
+                            "check if your inventory has the both health_potion and a mining_potion"
+                        )
+                elif(action.choice=="quest2"):
+                    player.quests=None
+                    if len(player.tasks)<=2:
+                        quest.pop("quest2",None)
+                        return PlainTextResponse(
+                                "Succesfully completed the quest2 complete remaining quests"
+                                f"Remaining quests:\n{quest}"
+                            )
+                    else:
+                        return PlainTextResponse(
+                            "Complete the library riddles more than 2 times totally\n"
+                            f"You have completed only {4-len(player.tasks)}tasks."
+                        )
+                elif(action.choice=="quest3"):
+                    player.quests=None
+                    emerald_set = [
+                        "emerald_helmet",
+                        "emerald_vest",
+                        "emerald_pant",
+                        "emerald_boots"
+                        ]
+                    if all(item in player.armor for item in emerald_set):
+                            quest.pop("quest3",None)
+                            return PlainTextResponse(
+                                "Succesfully completed the quest3 complete remaining quests"
+                                f"Remaining quests:\n{quest}"
+                            )
+                    else:
+                        return PlainTextResponse(
+                            "You don't have the complete armor go and earn coins and buy it from merchant\n"
+                            "check if your armor has the the whole set of emerrald_armor which contains 4 parts"
+                        )
+    elif(player.location=="library"):
+        if len(player.tasks) == 0:
+            return PlainTextResponse(
+                "You completed all riddles!"
+            )
+        if(action.choice=="riddle"):
+            player.state="riddle"
+            return PlainTextResponse(
+                f"{player.tasks[0]['riddle']}"
+            )
+        elif(player.state=="riddle"):
+            if(action.choice==player.tasks[0]["answer"].lower()):
+                player.state=None
+                player.tasks.pop(0)
+                return PlainTextResponse(
+                    "Correct answer,solve the next riddle"
+                )
+            else:
+                return PlainTextResponse(
+                    "Wrong answer,please retry\n"
+                    f"{player.tasks[0]['riddle']}"
+                )
+        else:
+            return PlainTextResponse(
+                "Enter a valid choice:\n"
+                "riddle"
+            )
+
                 
 
             
@@ -453,6 +564,10 @@ def info():
         "player_coins":player.coins,
         "player_inventory":player.inventory,
         "player_armor":player.armor
-    }    
+    }
+
+
+# @app.get("/rules"):
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
