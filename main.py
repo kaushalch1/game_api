@@ -4,6 +4,10 @@ from pydantic import BaseModel
 import uvicorn
 import random
 import time
+from fastapi import Response
+from uuid import uuid4
+from fastapi import Cookie, HTTPException
+from fastapi import Depends
 
 app = FastAPI(
     title="API Text Adventure",
@@ -46,7 +50,7 @@ class Player:
             "wooden_pickaxe",
             "wooden_sword",
         ]
-        self.location = "library"
+        self.location = "lobby"
         self.coins=0
         self.state=None
         self.brew=None
@@ -55,11 +59,36 @@ class Player:
         self.mine_time=time.time()
         self.quests=None
         self.tasks=[]
-player = Player()
-player.tasks.append(riddles[random.randint(0,5)])
-player.tasks.append(riddles[random.randint(6,10)])
-player.tasks.append(riddles[random.randint(11,14)])
-player.tasks.append(riddles[random.randint(15,19)])
+        self.quest={
+            "quest1":"Craft a health_potion and a mining_potion from the brewery",
+            "quest2":"Solve 2 riddles from the librarian",
+            "quest3":"Buy a full emerald armor from the merchant includes the helmet,vest,pant,boots",
+        }
+players={}
+@app.post("/new_player")
+def new_player(response:Response):
+    player_id = str(uuid4())
+    new_player = Player()
+    new_player.tasks.append(riddles[random.randint(0,5)])
+    new_player.tasks.append(riddles[random.randint(6,10)])
+    new_player.tasks.append(riddles[random.randint(11,14)])
+    new_player.tasks.append(riddles[random.randint(15,19)])
+    players[player_id] = new_player
+    response.set_cookie(
+        key="player_id",
+        value=player_id,
+        httponly=True,
+        samesite="Lax",
+        secure=True
+    )
+    return {
+        "player_id": player_id
+    }
+# player = Player()
+def get_current_player(player_id: str = Cookie(None)):
+    if not player_id or player_id not in players:
+        raise HTTPException(status_code=404, detail="Player not found")
+    return players[player_id]
 class ActionRequest(BaseModel):
     teleport: str
 class Action(BaseModel):
@@ -108,11 +137,7 @@ ROOMS = {
         "choices": []
     }
 }
-quest={
-            "quest1":"Craft a health_potion and a mining_potion from the brewery",
-            "quest2":"Solve 2 riddles from the librarian",
-            "quest3":"Buy a full emerald armor from the merchant includes the helmet,vest,pant,boots",
-        }
+# quest=player.quests
 @app.get("/map", response_class=PlainTextResponse)
 def map():
     return (
@@ -134,7 +159,7 @@ def map():
         "                          |       |\n"
         "                          [  EXIT ]\n"
     )
-def game_over():
+def game_over(player):
     return PlainTextResponse(
             "=================================\n"
             "           GAME OVER\n"
@@ -146,7 +171,7 @@ def game_over():
         )
 
 @app.get("/explore_room")
-def status():
+def status(player: Player = Depends(get_current_player)):
     return{
         "location":player.location,
         "description":ROOMS.get(player.location,{}).get("description"),
@@ -154,8 +179,9 @@ def status():
     }
 
 LOCATIONS=["lobby","cave","brewery","library","deep_forest","merchant","quests","boss_fight","blacksmith"]
+
 @app.post("/teleport")
-def teleport(action: ActionRequest):
+def teleport(action: ActionRequest, player: Player = Depends(get_current_player)):
     if not action.teleport:
         options = ", ".join(LOCATIONS)
         return PlainTextResponse(f"Please choose a location. Available locations: {options}") 
@@ -168,7 +194,7 @@ def teleport(action: ActionRequest):
     return PlainTextResponse(f"Player has teleported from {x} to {player.location}")
 
 @app.post("/choice")
-def choice(action:Action):
+def choice(action: Action, player: Player = Depends(get_current_player)):
     action.choice=action.choice.lower()
     if not action.choice:
         options=ROOMS.get(player.location, {}).get("choices", [])
@@ -263,11 +289,11 @@ def choice(action:Action):
                     player.mine_potion = 0
                     player.health -= 3
                     if player.health<=0:
-                        return game_over()
+                        return game_over(player)
             else:
                 player.health -= 3
                 if player.health<=0:
-                    return game_over()
+                    return game_over(player)
             s=0
             i=0
             d=0
@@ -291,6 +317,11 @@ def choice(action:Action):
                 f"Iron: {i}\n"
                 f"Diamond: {d}\n"
                 f"Your health is decreased by -3Hp.Watch out( ■_■)"
+            )
+        else:
+            return PlainTextResponse(
+                "Choose a valid choice:\n"
+                "mine"
             )
     elif(player.location=="blacksmith"):
         if player.state==None:
@@ -397,7 +428,12 @@ def choice(action:Action):
                     "emerald_boots":22
                 }
                 if action.choice in buy_items:
-                    if(buy_items[action.choice]<=player.coins):
+                    if action.choice in player.armor:
+                        player.state = None
+                        return PlainTextResponse(
+                            "You already own this item."
+                        )
+                    elif(buy_items[action.choice]<=player.coins):
                         player.state=None
                         player.coins-=buy_items[action.choice]
                         player.armor.append(action.choice)
@@ -407,7 +443,7 @@ def choice(action:Action):
                     else:
                         player.state=None
                         return PlainTextResponse(
-                            f"You don't have to coins to buy {action.choice},Go earn them."
+                            f"You don't have enough coins to buy {action.choice},Go earn them."
                         )
                 else:
                     player.state=None
@@ -453,7 +489,7 @@ def choice(action:Action):
             if(action.choice not in ROOMS["quests"]["choices"]):
                 return PlainTextResponse(
                     "Complete all the quests to be able to fight with the boss.\n"
-                    f"Remaining quests:\n{quest}\n"
+                    f"Remaining quests:\n{player.quest}\n"
                     "If completed the quest enter the name of the quest"
                 )
             else:
@@ -461,10 +497,10 @@ def choice(action:Action):
                 if(action.choice=="quest1"):
                     player.quests=None
                     if(player.inventory["health_potion"] and player.inventory["mining_potion"]):
-                        quest.pop("quest1",None)
+                        player.quest.pop("quest1",None)
                         return PlainTextResponse(
                             "Succesfully completed the quest1 complete remaining quests"
-                            f"Remaining quests:\n{quest}"
+                            f"Remaining quests:\n{player.quest}"
                         )
                     else:
                         return PlainTextResponse(
@@ -474,10 +510,10 @@ def choice(action:Action):
                 elif(action.choice=="quest2"):
                     player.quests=None
                     if len(player.tasks)<=2:
-                        quest.pop("quest2",None)
+                        player.quest.pop("quest2",None)
                         return PlainTextResponse(
                                 "Succesfully completed the quest2 complete remaining quests"
-                                f"Remaining quests:\n{quest}"
+                                f"Remaining quests:\n{player.quest}"
                             )
                     else:
                         return PlainTextResponse(
@@ -493,10 +529,10 @@ def choice(action:Action):
                         "emerald_boots"
                         ]
                     if all(item in player.armor for item in emerald_set):
-                            quest.pop("quest3",None)
+                            player.quest.pop("quest3",None)
                             return PlainTextResponse(
                                 "Succesfully completed the quest3 complete remaining quests"
-                                f"Remaining quests:\n{quest}"
+                                f"Remaining quests:\n{player.quest}"
                             )
                     else:
                         return PlainTextResponse(
@@ -514,7 +550,7 @@ def choice(action:Action):
                 f"{player.tasks[0]['riddle']}"
             )
         elif(player.state=="riddle"):
-            if(action.choice==player.tasks[0]["answer"].lower()):
+            if action.choice.strip().lower() == player.tasks[0]["answer"].strip().lower():
                 player.state=None
                 player.tasks.pop(0)
                 return PlainTextResponse(
@@ -531,12 +567,11 @@ def choice(action:Action):
                 "riddle"
             )
     elif(player.location=="boss_fight"):
-        if len(quest)!=0:
+        if len(player.quest)!=0:
             return PlainTextResponse(
                 "You must complete all quests to fight with boss"
             )
-        
-        boss_health = getattr(player, "boss_health", 150)
+
         if player.state is None:
             if action.choice=="enter":
                 player.state="boss"
@@ -553,16 +588,17 @@ def choice(action:Action):
                 "Enter a valid choice:\n"
                 "enter"
             )
-        elif player.state=="boss":
-            if (action.choice=="attack"):
+        elif(player.state=="boss"):
+            if(action.choice=="attack"):
                 damage=random.randint(10,20)
                 if "diamond_sword" in player.armor:
                     damage+=15
                 elif "iron_sword" in player.armor:
                     damage+=8
                 player.boss_health-=damage
-                if player.boss_health <= 0:
-                    player.state = None
+
+                if player.boss_health<=0:
+                    player.state=None
                     return PlainTextResponse(
                         f"You dealt {damage} damage!\n"
                         "The Shadow Dragon has been defeated!\n"
@@ -573,106 +609,115 @@ def choice(action:Action):
                 if player.health<=0:
                     player.state=None
                     player.location="game_over"
-                return PlainTextResponse(
-                    f"You dealt {damage} damage.\n"
-                    f"The boss dealt {boss_damage} damage.\n"
-                    "You were defeated...\n"
-                    "GAME OVER"
-                )
-            return PlainTextResponse(
-                f"You dealt {damage} damage!\n"
-                f"Boss HP: {player.boss_health}\n\n"
-                f"The boss attacked back for {boss_damage} damage!\n"
-                f"Your HP: {player.health}\n\n"
-                "Choose:\n"
-                "attack\n"
-                "heavy_attack\n"
-                "heal"
-            )
-        elif action.choice=="heavy_attack":
-
-            hit=random.randint(0,1)
-            if hit==1:
-                damage=random.randint(25,40)
-                if "diamod_sword" in player.armor:
-                    damage+=20
-                elif "iron_sword" in player.armor:
-                    damage+=10
-                player.boss_health-=damage
-                if boss_health<=0:
-                    player.state=None
                     return PlainTextResponse(
-                        f"CRITICAL HIT! You dealt {damage} damage!\n"
-                        "The Shadow Dragon has been defeated!\n"
-                        "YOU WIN THE GAME!"
+                        "You were defeated...\n"
+                        "GAME OVER"
                     )
-                boss_damage=random.randint(10,20)
+
+                return PlainTextResponse(
+                    f"You dealt {damage} damage!\n"
+                    f"Boss HP: {player.boss_health}\n\n"
+                    f"The boss attacked back for {boss_damage} damage!\n"
+                    f"Your HP: {player.health}\n\n"
+                    "Choose:\n"
+                    "attack\n"
+                    "heavy_attack\n"
+                    "heal"
+                )
+            elif(action.choice=="heavy_attack"):
+                hit=random.randint(0,1)
+                if hit==1:
+                    damage=random.randint(25,40)
+                    if "diamond_sword" in player.armor:
+                        damage+=20
+                    elif "iron_sword" in player.armor:
+                        damage+=10
+                    player.boss_health-=damage
+                    if player.boss_health<=0:
+                        player.state=None
+                        return PlainTextResponse(
+                            f"CRITICAL HIT! You dealt {damage} damage!\n"
+                            "The Shadow Dragon has been defeated!\n"
+                            "YOU WIN THE GAME!"
+                        )
+                    boss_damage=random.randint(10,20)
+                    player.health-=boss_damage
+                    if player.health<=0:
+                        player.state=None
+                        player.location="game_over"
+                        return PlainTextResponse(
+                            "You were defeated...\n"
+                            "GAME OVER"
+                        )
+                    return PlainTextResponse(
+                        f"Critical hit! You dealt {damage} damage!\n"
+                        f"Boss HP: {player.boss_health}\n\n"
+                        f"The boss attacked back for {boss_damage} damage!\n"
+                        f"Your HP: {player.health}\n\n"
+                        "Choose:\n"
+                        "attack\n"
+                        "heavy_attack\n"
+                        "heal"
+                    )
+                else:
+                    boss_damage=random.randint(15,25)
+                    player.health-=boss_damage
+                    if player.health<=0:
+                        player.state=None
+                        player.location="game_over"
+                        return PlainTextResponse(
+                            "Your heavy attack missed!\n"
+                            "The boss defeated you...\n"
+                            "GAME OVER"
+                        )
+                    return PlainTextResponse(
+                        f"Your heavy attack missed!\n"
+                        f"The boss attacked for {boss_damage} damage!\n"
+                        f"Your HP: {player.health}\n\n"
+                        "Choose:\n"
+                        "attack\n"
+                        "heavy_attack\n"
+                        "heal"
+                    )
+            elif(action.choice=="heal"):
+                if player.inventory["health_potion"]<=0:
+                    return PlainTextResponse(
+                        "You do not have any health potions!"
+                    )
+                player.inventory["health_potion"]-=1
+                player.health+=30
+                if player.health>=200:
+                    player.health=200
+                boss_damage=random.randint(5,15)
                 player.health-=boss_damage
                 if player.health<=0:
                     player.state=None
                     player.location="game_over"
                     return PlainTextResponse(
-                            "You were defeated...\n"
-                            "GAME OVER"
-                    )
-                return PlainTextResponse(
-                        f"Critical hit! You dealt {damage} damage!\n"
-                        f"Boss HP: {player.boss_health}\n\n"
-                        f"The boss attacked back for {boss_damage} damage!\n"
-                        f"Your HP: {player.health}"
-                )
-            else:
-                boss_damage=random.randint(15,25)
-                player.health-=boss_damage
-                if (player.health<=0):
-                    player.state=None
-                    player.location="game_over"
-                    return PlainTextResponse(
-                        "Your heavy attack missed!\n"
-                        "The boss defeated you...\n"
+                        "You healed, but the boss defeated you...\n"
                         "GAME OVER"
                     )
                 return PlainTextResponse(
-                    f"Your heavy attack missed!\n"
+                    f"You healed 30 HP!\n"
                     f"The boss attacked for {boss_damage} damage!\n"
-                    f"Your HP: {player.health}"
+                    f"Your HP: {player.health}\n"
+                    f"Boss HP: {player.boss_health}\n\n"
+                    "Choose:\n"
+                    "attack\n"
+                    "heavy_attack\n"
+                    "heal"
                 )
-        elif action.choice=="heal":
-            if player.inventory["health_potion"]<=0:
+            else:
                 return PlainTextResponse(
-                    "You do not have any health potions!"
+                    "Choose a valid move:\n"
+                    "attack\n"
+                    "heavy_attack\n"
+                    "heal"
                 )
-            player.inventory["health_potion"] -= 1
-            player.health += 30
-            if player.health>=200:
-                player.health=200
-            boss_damage = random.randint(5, 15)
-            player.health -= boss_damage
-
-            if player.health <= 0:
-                player.state = None
-                player.location = "game_over"
-                return PlainTextResponse(
-                    "You healed, but the boss defeated you...\n"
-                    "GAME OVER"
-                )
-            return PlainTextResponse(
-                f"You healed 35 HP!\n"
-                f"The boss attacked for {boss_damage} damage!\n"
-                f"Your HP: {player.health}\n"
-                f"Boss HP: {player.boss_health}"
-            )
-        else:
-            return PlainTextResponse(
-                "Choose a valid move:\n"
-                "attack\n"
-                "heavy_attack\n"
-                "heal"
-            )
     elif(player.location=="game_over"):
-        return game_over()                
+        return game_over(player)
 @app.post("/usepotion")
-def potion(action:a):
+def potion(action: a, player: Player = Depends(get_current_player)):
     if(action.potion=="health_potion"):
         if player.inventory["health_potion"] <= 0:
             return PlainTextResponse(
@@ -705,9 +750,8 @@ def potion(action:a):
 
 
 
-
 @app.get("/playerinfo")
-def info():
+def info(player: Player = Depends(get_current_player)):
     return{
         "player_health":player.health,
         "player_location":player.location,
