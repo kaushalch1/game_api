@@ -134,6 +134,17 @@ def map():
         "                          |       |\n"
         "                          [  EXIT ]\n"
     )
+def game_over():
+    return PlainTextResponse(
+            "=================================\n"
+            "           GAME OVER\n"
+            "=================================\n"
+            f"final health={player.health}\n"
+            f"coins collected={player.coins}\n"
+            "The adventure has ended.\n"
+            "Restart the server to play again.\n"
+        )
+
 @app.get("/explore_room")
 def status():
     return{
@@ -251,8 +262,12 @@ def choice(action:Action):
                 if (time.time() - player.mine_time) >= 120:
                     player.mine_potion = 0
                     player.health -= 3
+                    if player.health<=0:
+                        return game_over()
             else:
                 player.health -= 3
+                if player.health<=0:
+                    return game_over()
             s=0
             i=0
             d=0
@@ -654,8 +669,8 @@ def choice(action:Action):
                 "heavy_attack\n"
                 "heal"
             )
-
-                
+    elif(player.location=="game_over"):
+        return game_over()                
 @app.post("/usepotion")
 def potion(action:a):
     if(action.potion=="health_potion"):
