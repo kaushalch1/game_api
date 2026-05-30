@@ -2,5 +2,13 @@ services:
   - type: web
     name: game-api
     env: docker
+    branch: main
+    dockerfilePath: Dockerfile
     plan: free
     autoDeploy: true
+    envVars:
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    healthCheckPath: /map
