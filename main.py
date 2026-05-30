@@ -762,6 +762,69 @@ def info(player: Player = Depends(get_current_player)):
 
 
 # @app.get("/rules"):
-
+@app.get("/help")
+def help():
+    return PlainTextResponse(
+        "=====================================\n"
+        "        TEXT ADVENTURE GUIDE\n"
+        "=====================================\n\n"
+        "WELCOME, ADVENTURER\n"        
+        "HOW TO START\n"
+        "- Begin your journey: POST /new_player\n"
+        "- This creates your character automatically\n"
+        "- You will NOT need to enter player_id again (cookies handle it)\n\n"
+        
+        "CORE GAME ROUTES\n"
+        "1. Explore your current location:\n"
+        "   GET /explore_room\n"
+        "   → Shows where you are and what you can do\n\n"
+        
+        "2. Move between locations:\n"
+        "   POST /teleport\n"
+        "   → Travel to places like cave, library, merchant, etc.\n\n"
+        
+        "3. Perform actions in a room:\n"
+        "   POST /choice\n"
+        "   → Example actions depend on location:\n"
+        "     - mine (in cave)\n"
+        "     - brew (in brewery)\n"
+        "     - meditate (in forest)\n"
+        "     - riddle (in library)\n"
+        "     - buy/sell (merchant)\n"
+        "     - upgrade (blacksmith)\n"
+        "     - quest1/quest2/quest3 (quests)\n\n"
+        
+        "ITEMS AND POTIONS\n"
+        "- Use potions: POST /usepotion\n"
+        "  * health_potion → restores health\n"
+        "  * mining_potion → boosts mining for 2 minutes\n\n"
+        
+        "PLAYER INFO\n"
+        "- Check status: GET /playerinfo\n"
+        "  → View health, coins, inventory, and armor\n\n"
+        
+        "MAIN LOCATIONS\n"
+        "- lobby → starting area\n"
+        "- cave → mine stone, iron, diamonds\n"
+        "- brewery → craft potions\n"
+        "- library → solve riddles\n"
+        "- deep_forest → restore health\n"
+        "- merchant → buy and sell items\n"
+        "- quests → complete missions\n"
+        "- blacksmith → upgrade weapons\n"
+        "- boss_fight → final battle\n\n"
+        
+        "QUEST GOAL\n"
+        "Complete all quests to unlock the final boss.\n"
+        "Defeat the Shadow Dragon to win the game.\n\n"
+        
+        "IMPORTANT TIPS\n"
+        "- Always start with /new_player\n"
+        "- Your progress is stored in memory and resets if the server restarts\n"
+        "- Use /help anytime to see this guide\n\n"
+        
+        "Good luck, adventurer.\n"
+        "=====================================\n"
+    )
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
