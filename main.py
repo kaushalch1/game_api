@@ -167,7 +167,7 @@ def game_over(player):
             f"final health={player.health}\n"
             f"coins collected={player.coins}\n"
             "The adventure has ended.\n"
-            "Restart the server to play again.\n"
+            "Restart the server to play again,or create a newplayer from the /newplayer route.\n"
         )
 
 @app.get("/explore_room")
@@ -748,8 +748,6 @@ def potion(action: a, player: Player = Depends(get_current_player)):
             "mining_potion"
         )
 
-
-
 @app.get("/playerinfo")
 def info(player: Player = Depends(get_current_player)):
     return{
@@ -760,12 +758,11 @@ def info(player: Player = Depends(get_current_player)):
         "player_armor":player.armor
     }
 
-
 # @app.get("/rules"):
 @app.get("/help")
 def help():
     return PlainTextResponse(
-        "=====================================\n"
+        "-------------------------------------\n"
         "        TEXT ADVENTURE GUIDE\n"
         "=====================================\n\n"
         "WELCOME, ADVENTURER\n"        
@@ -774,7 +771,7 @@ def help():
         "- This creates your character automatically\n"
         "- You will NOT need to enter player_id again (cookies handle it)\n\n"
         
-        "CORE GAME ROUTES\n"
+        "CORE GAME ROUTES:\n"
         "1. Explore your current location:\n"
         "   GET /explore_room\n"
         "   → Shows where you are and what you can do\n\n"
@@ -794,16 +791,16 @@ def help():
         "     - upgrade (blacksmith)\n"
         "     - quest1/quest2/quest3 (quests)\n\n"
         
-        "ITEMS AND POTIONS\n"
+        "ITEMS AND POTIONS:\n"
         "- Use potions: POST /usepotion\n"
         "  * health_potion → restores health\n"
         "  * mining_potion → boosts mining for 2 minutes\n\n"
         
-        "PLAYER INFO\n"
+        "PLAYER INFO:\n"
         "- Check status: GET /playerinfo\n"
         "  → View health, coins, inventory, and armor\n\n"
         
-        "MAIN LOCATIONS\n"
+        "MAIN LOCATIONS:\n"
         "- lobby → starting area\n"
         "- cave → mine stone, iron, diamonds\n"
         "- brewery → craft potions\n"
@@ -814,16 +811,17 @@ def help():
         "- blacksmith → upgrade weapons\n"
         "- boss_fight → final battle\n\n"
         
-        "QUEST GOAL\n"
+        "QUEST GOAL:\n"
         "Complete all quests to unlock the final boss.\n"
         "Defeat the Shadow Dragon to win the game.\n\n"
         
-        "IMPORTANT TIPS\n"
+        "IMPORTANT TIPS:\n"
         "- Always start with /new_player\n"
         "- Your progress is stored in memory and resets if the server restarts\n"
+        "-When you die,change it by creating a new play and makesure you have enough health while mining"
         "- Use /help anytime to see this guide\n\n"
         
-        "Good luck, adventurer.\n"
+        "Good luck, adventurer (*^_^*)\n"
         "=====================================\n"
     )
 if __name__ == "__main__":
