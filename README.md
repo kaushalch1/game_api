@@ -1,7 +1,5 @@
 **API Text Adventure — Routes**
 
-This document describes the HTTP routes implemented in the FastAPI application in [main.py](main.py).
-
 **Overview**: The app exposes a small text-adventure game API. New players are created via `/new_player` which sets a `player_id` cookie; most routes require that cookie to identify the player session.
  WELCOME, ADVENTURER
 HOW TO START
